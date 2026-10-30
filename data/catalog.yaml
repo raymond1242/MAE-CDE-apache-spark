@@ -1,0 +1,258 @@
+# Data catalog: single source of truth for what data the project uses and where it comes from.
+#
+# - Each dataset groups one or more files (its parts). Each file records its source URL,
+#   its local path, its format and its sha256.
+# - The sha256 pins the exact version used: if the source publishes a new version,
+#   scripts/download_data.py reports it.
+# - Nothing under data/raw/ is committed; run `python scripts/download_data.py` to rebuild it.
+# - senamhi_stations is fetched from the SENAMHI interoperability API (needs SENAMHI_API_KEY in .env).
+# - The `relations` section (at the end) describes how datasets are joined.
+# - Keys are in English; descriptive values are in Spanish.
+
+datasets:
+
+  - id: dengue
+    name: Vigilancia epidemiológica de dengue
+    publisher: Centro Nacional de Epidemiología, Prevención y Control de Enfermedades (CDC Perú) - MINSA
+    page: https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiol%C3%B3gica-de-dengue
+    role: hechos (tabla principal, una fila por caso notificado)
+    temporal_coverage: 2000-2025, por año y semana epidemiológica
+    spatial_coverage: Perú, 662 distritos con casos
+    join_key: ubigeo (6 dígitos) + ano + semana
+    retrieved_on: 2026-10-28
+    notes:
+      - 1,065,274 casos. enfermedad/diagnostic indica gravedad (A97.0 sin signos de alarma, A97.1 con signos, A97.2 grave).
+      - "tipo_dx: C confirmado, P probable."
+      - edad viene en años, meses o días según tipo_edad (A/M/D); hay que normalizarla.
+      - Hay comas dentro de campos entre comillas.
+    files:
+      - path: data/raw/dengue/dengue_surveillance_2000_2025.csv
+        url: https://www.datosabiertos.gob.pe/sites/default/files/datos_abiertos_vigilancia_dengue_2000_2025_0.csv
+        kind: data
+        format: csv
+        delimiter: ","
+        encoding: utf-8
+        sha256: 7865e8b2f5a7aef1e8dce159444891f2c2e59b311d574f28c55aaca5a9abb8ba
+        bytes: 117866478
+
+  - id: reniec_population
+    name: RENIEC - Población identificada con DNI
+    publisher: Registro Nacional de Identificación y Estado Civil (RENIEC)
+    page: https://www.datosabiertos.gob.pe/dataset/reniec-poblaci%C3%B3n-identificada-con-dni-registro-nacional-de-identificaci%C3%B3n-y-estado-civil
+    role: dimensión (población por distrito, sexo y edad; denominador de las tasas)
+    temporal_coverage: un corte por año (diciembre 2022 a 2025), para emparejar con dengue 2022-2025
+    spatial_coverage: Perú, 1,891 distritos
+    join_key: UBIGEO_INEI (6 dígitos)
+    retrieved_on: 2026-10-28
+    notes:
+      - Filtrar Residencia = 'Nacional' (también trae peruanos en el extranjero).
+      - Es población con DNI según domicilio declarado, no población censal.
+      - No hay cortes anteriores a 2021.
+    files:
+      - path: data/raw/reniec/population_dni_2022-12.csv
+        url: https://www.datosabiertos.gob.pe/sites/default/files/16_OPP_2022_Dic.csv
+        kind: data
+        format: csv
+        delimiter: ","
+        encoding: utf-8-sig
+        sha256: 14b4473919d311f3194d0710881be6d12c2f70fb5cfaab6823a80b7f8a2a5826
+        bytes: 49065406
+      - path: data/raw/reniec/population_dni_2023-12.csv
+        url: https://www.datosabiertos.gob.pe/sites/default/files/BD_DAbiertos_16_OPP_2023_12.01.csv
+        kind: data
+        format: csv
+        delimiter: ","
+        encoding: utf-8-sig
+        sha256: fc7b24aa4647bd89f31645991cda166ace59c21eee9efe962f9a8d3d37043422
+        bytes: 53854629
+      - path: data/raw/reniec/population_dni_2024-12.csv
+        url: https://www.datosabiertos.gob.pe/sites/default/files/BD_DAbiertos_16_OPP_2024_12.01.csv
+        kind: data
+        format: csv
+        delimiter: ","
+        encoding: utf-8-sig
+        sha256: c8d19795a18c48bc69bd8628625b4a329c6ed01446edf9e8f2226ecf88051df3
+        bytes: 59424546
+      - path: data/raw/reniec/population_dni_2025-12.csv
+        url: https://www.datosabiertos.gob.pe/sites/default/files/BD_DAbiertos_16_OPP_2025_12.01.csv
+        kind: data
+        format: csv
+        delimiter: ","
+        encoding: utf-8-sig
+        sha256: f8fda2ac386d22d80bd023493a157acbc6099c64ad7bf8b8faac795c725084e3
+        bytes: 65874711
+
+  - id: sunass_water_emergencies
+    name: Distritos declarados en estado de emergencia por riesgos asociados a recursos hídricos
+    publisher: Superintendencia Nacional de Servicios de Saneamiento (SUNASS)
+    page: https://www.datosabiertos.gob.pe/dataset/distritos-declarados-en-estado-de-emergencia-por-riesgos-asociados-recursos-h%C3%ADdricos-sunass
+    role: dimensión (emergencias por lluvias o déficit hídrico, cobertura y continuidad del agua)
+    temporal_coverage: decretos de 2017, 2023 y 2024
+    spatial_coverage: 1,772 distritos (546 de los 662 con dengue)
+    join_key: UBIGEO + ANIO (y FECHA_INICIO/FECHA_FINAL para cruces por rango)
+    retrieved_on: 2026-10-28
+    notes:
+      - Un distrito aparece varias veces por prórrogas; hay que agregar antes de unir para no duplicar casos.
+      - COB_AGUA = % de cobertura de agua; CONT_HD = horas de agua al día.
+    files:
+      - path: data/raw/sunass/water_emergencies.csv
+        url: https://www.datosabiertos.gob.pe/sites/default/files/DSHidricos_Dataset.csv
+        kind: data
+        format: csv
+        delimiter: ","
+        encoding: latin-1
+        sha256: 3d435f7f4f569bf1c8860409c75c05c83cc10675f0802c3c44c98d5c8bae10f9
+        bytes: 5251588
+      - path: data/raw/sunass/water_emergencies_dictionary.xlsx
+        url: https://www.datosabiertos.gob.pe/sites/default/files/DSHidricos_DiccionarioDatos.xlsx
+        kind: dictionary
+        format: xlsx
+        sha256: 56ec298f6c9cf52ddd4caeaf4fe18bedee3de10e35883a880960428db9cc9acf
+        bytes: 11009
+
+  - id: renipress_facilities
+    name: Registro Nacional de IPRESS (RENIPRESS)
+    publisher: Superintendencia Nacional de Salud (SUSALUD)
+    page: https://www.datosabiertos.gob.pe/dataset/registro-nacional-de-entidades-prestadoras-de-servicios-de-salud-renipress
+    role: dimensión (oferta de establecimientos de salud por distrito)
+    temporal_coverage: corte al 30-09-2026
+    spatial_coverage: Perú, 36,128 establecimientos (26,972 activos)
+    join_key: UBIGEO
+    retrieved_on: 2026-10-28
+    notes:
+      - Filtrar ESTADO = 'ACTIVO'.
+      - CATEGORIA va de I-1 (puesto de salud) a III (hospital especializado).
+    files:
+      - path: data/raw/renipress/renipress_2026-09-30.csv
+        url: https://www.datosabiertos.gob.pe/sites/default/files/RENIPRESS_30-09-2026.csv
+        kind: data
+        format: csv
+        delimiter: ";"
+        encoding: utf-8-sig
+        sha256: 89040c55e9c53398465975171fb348109fd11b787d238970161a243115070823
+        bytes: 19852149
+      - path: data/raw/renipress/renipress_dictionary.pdf
+        url: https://www.datosabiertos.gob.pe/sites/default/files/Diccionario%20de%20datos%20RENIPRESS.pdf
+        kind: dictionary
+        format: pdf
+        sha256: 730f2fa2ac1510a6fd5f38471ed05b97cd0a8262f446e5f5f2dad7280b8e6bab
+        bytes: 70115
+
+  - id: gore_piura_hydromet
+    name: Datos Hidrometeorológicos [Gobierno Regional Piura]
+    publisher: Gobierno Regional de Piura - Proyecto Especial Chira Piura
+    page: https://www.datosabiertos.gob.pe/dataset/datos-hidrometereol%C3%B3gicos-gobierno-regional-piura
+    role: clima (lluvia diaria en Piura)
+    temporal_coverage: 2022-01-01 a 2026-08-31, diario
+    spatial_coverage: Piura, 29 puntos de medición en presas, ríos y canales
+    join_key: UBIGEO + FECHA_REGISTRO
+    retrieved_on: 2026-10-28
+    notes:
+      - Solo ~13 de los 29 puntos miden lluvia (PRECIP24H); los demás (canales, volúmenes, evaporación) siempre marcan 0 y hay que excluirlos.
+      - Faltan ~23 días por año.
+      - La fuente sobrescribe este archivo cada mes en la misma URL; el sha256 identifica la versión usada.
+    files:
+      - path: data/raw/gore_piura/piura_hydromet.csv
+        url: https://www.datosabiertos.gob.pe/sites/default/files/tb_medida_estaciones_act.csv
+        kind: data
+        format: csv
+        delimiter: ","
+        encoding: utf-8
+        sha256: 3b3597fc39b5c6e6d9ebf1309c201356645f354b1b7d719b18b647883cf5a539
+        bytes: 4862602
+      - path: data/raw/gore_piura/piura_hydromet_dictionary.xlsx
+        url: https://www.datosabiertos.gob.pe/sites/default/files/Formato_DiccionarioDatos_61.xlsx
+        kind: dictionary
+        format: xlsx
+        sha256: fb79ef3a9224a6a45783b59777b0808b1097b03c4f8fb677b97baee51782b2d7
+        bytes: 76727
+
+  - id: senamhi_stations
+    name: Datos diarios de estaciones meteorológicas convencionales
+    publisher: Servicio Nacional de Meteorología e Hidrología del Perú (SENAMHI)
+    page: https://observatorio.senamhi.gob.pe/investigadores/interoperabilidad
+    role: clima (validación de gore_piura_hydromet en Piura; lluvia, temperatura y humedad en Tumbes y la selva)
+    temporal_coverage: 2022-01 a 2025-12, diario, según los meses que publique cada estación
+    spatial_coverage: 9 estaciones cercanas a ciudades con dengue
+    join_key: ubigeo de la estación + fecha
+    retrieved_on: null
+    source: senamhi_api
+    api:
+      base_url: https://interoperabilidad.senamhi.gob.pe/api
+      key_env_var: SENAMHI_API_KEY
+      requests_per_minute: 20
+    period:
+      start: "2022-01"
+      end: "2025-12"
+    output_dir: data/raw/senamhi
+    notes:
+      - Requiere una cuenta aprobada por el SENAMHI; la API key va en .env y la IP pública de origen debe estar registrada en la cuenta.
+      - Se guarda cada respuesta JSON tal cual en {code}/station.json, {code}/periods.json y {code}/{AAAAMM}.json.
+      - Las estaciones convencionales devuelven una fila por día; los valores inválidos llegan como null y la traza de lluvia como "T".
+      - Datos sin control de calidad.
+    stations:
+      - code: "105100"
+        name: MIRAFLORES
+        district: CASTILLA (Piura)
+        ubigeo: "200104"
+        purpose: validación de gore_piura_hydromet
+      - code: "104079"
+        name: MALLARES
+        district: MARCAVELICA (Sullana, Piura)
+        ubigeo: "200605"
+        purpose: validación de gore_piura_hydromet
+      - code: "103038"
+        name: PUERTO PIZARRO
+        district: TUMBES
+        ubigeo: "240101"
+        purpose: costa
+      - code: "100138"
+        name: TARAPOTO
+        district: TARAPOTO (San Martín)
+        ubigeo: "220901"
+        purpose: selva
+      - code: "106014"
+        name: MOYOBAMBA
+        district: MOYOBAMBA (San Martín)
+        ubigeo: "220101"
+        purpose: selva
+      - code: "103057"
+        name: AMAZONAS
+        district: IQUITOS (Loreto)
+        ubigeo: "160101"
+        purpose: selva
+      - code: "100132"
+        name: SHANUSI
+        district: YURIMAGUAS (Loreto)
+        ubigeo: "160201"
+        purpose: selva
+      - code: "108021"
+        name: PUCALLPA
+        district: CALLERIA (Ucayali)
+        ubigeo: "250101"
+        purpose: selva
+      - code: "100109"
+        name: PUERTO MALDONADO
+        district: TAMBOPATA (Madre de Dios)
+        ubigeo: "170101"
+        purpose: selva
+
+relations:
+  - datasets: [dengue, reniec_population]
+    join_key: dengue.ubigeo = reniec_population.UBIGEO_INEI (+ año del corte)
+    purpose: casos por 100 mil habitantes, por distrito, sexo y grupo de edad
+  - datasets: [dengue, sunass_water_emergencies]
+    join_key: dengue.ubigeo = sunass.UBIGEO, y fecha del caso dentro de [FECHA_INICIO, FECHA_FINAL]
+    purpose: incidencia en distritos en emergencia frente a distritos sin emergencia; efecto de horas de agua al día
+  - datasets: [dengue, renipress_facilities]
+    join_key: dengue.ubigeo = renipress.UBIGEO
+    purpose: establecimientos de salud por habitante frente a casos graves o sin confirmar
+  - datasets: [dengue, gore_piura_hydromet]
+    join_key: ubigeo o provincia + semana epidemiológica (la lluvia diaria se agrega a semanas)
+    purpose: semanas de retraso entre lluvia y aumento de casos en Piura
+  - datasets: [dengue, senamhi_stations]
+    join_key: ubigeo o provincia de la estación + semana epidemiológica
+    purpose: relación entre lluvia, temperatura y casos en la costa y la selva
+  - datasets: [gore_piura_hydromet, senamhi_stations]
+    join_key: distrito + fecha
+    purpose: validar la lluvia del Gobierno Regional de Piura con estaciones oficiales del SENAMHI
