@@ -1,0 +1,21 @@
+# Raw data is rebuilt by scripts/download_data.py (see data/catalog.yaml); never commit it.
+data/raw/
+
+# Spark outputs (Parquet, intermediate results)
+data/processed/
+
+# Local Spark files
+spark-warehouse/
+metastore_db/
+derby.log
+
+# Python / Jupyter
+__pycache__/
+.ipynb_checkpoints/
+.venv/
+
+# Secrets (SENAMHI API key)
+.env
+
+# macOS
+.DS_Store
