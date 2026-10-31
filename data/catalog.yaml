@@ -121,7 +121,8 @@ datasets:
     retrieved_on: 2026-10-28
     notes:
       - Filtrar ESTADO = 'ACTIVO'.
-      - CATEGORIA va de I-1 (puesto de salud) a III (hospital especializado).
+      - CATEGORIA va de I-1 (puesto de salud) a III (hospital especializado); "0" significa sin categoría.
+      - Hay direcciones con saltos de línea y comillas escritas como "" dentro de los campos; leer con escape='"' y multiLine=True o se pierden filas.
     files:
       - path: data/raw/renipress/renipress_2026-09-30.csv
         url: https://www.datosabiertos.gob.pe/sites/default/files/RENIPRESS_30-09-2026.csv
@@ -138,40 +139,11 @@ datasets:
         sha256: 730f2fa2ac1510a6fd5f38471ed05b97cd0a8262f446e5f5f2dad7280b8e6bab
         bytes: 70115
 
-  - id: gore_piura_hydromet
-    name: Datos Hidrometeorológicos [Gobierno Regional Piura]
-    publisher: Gobierno Regional de Piura - Proyecto Especial Chira Piura
-    page: https://www.datosabiertos.gob.pe/dataset/datos-hidrometereol%C3%B3gicos-gobierno-regional-piura
-    role: clima (lluvia diaria en Piura)
-    temporal_coverage: 2022-01-01 a 2026-08-31, diario
-    spatial_coverage: Piura, 29 puntos de medición en presas, ríos y canales
-    join_key: UBIGEO + FECHA_REGISTRO
-    retrieved_on: 2026-10-28
-    notes:
-      - Solo ~13 de los 29 puntos miden lluvia (PRECIP24H); los demás (canales, volúmenes, evaporación) siempre marcan 0 y hay que excluirlos.
-      - Faltan ~23 días por año.
-      - La fuente sobrescribe este archivo cada mes en la misma URL; el sha256 identifica la versión usada.
-    files:
-      - path: data/raw/gore_piura/piura_hydromet.csv
-        url: https://www.datosabiertos.gob.pe/sites/default/files/tb_medida_estaciones_act.csv
-        kind: data
-        format: csv
-        delimiter: ","
-        encoding: utf-8
-        sha256: 3b3597fc39b5c6e6d9ebf1309c201356645f354b1b7d719b18b647883cf5a539
-        bytes: 4862602
-      - path: data/raw/gore_piura/piura_hydromet_dictionary.xlsx
-        url: https://www.datosabiertos.gob.pe/sites/default/files/Formato_DiccionarioDatos_61.xlsx
-        kind: dictionary
-        format: xlsx
-        sha256: fb79ef3a9224a6a45783b59777b0808b1097b03c4f8fb677b97baee51782b2d7
-        bytes: 76727
-
   - id: senamhi_stations
     name: Datos diarios de estaciones meteorológicas convencionales
     publisher: Servicio Nacional de Meteorología e Hidrología del Perú (SENAMHI)
     page: https://observatorio.senamhi.gob.pe/investigadores/interoperabilidad
-    role: clima (validación de gore_piura_hydromet en Piura; lluvia, temperatura y humedad en Tumbes y la selva)
+    role: clima (lluvia, temperatura y humedad diarias en la costa norte y la selva)
     temporal_coverage: 2022-01 a 2025-12, diario, según los meses que publique cada estación
     spatial_coverage: 9 estaciones cercanas a ciudades con dengue
     join_key: ubigeo de la estación + fecha
@@ -195,12 +167,12 @@ datasets:
         name: MIRAFLORES
         district: CASTILLA (Piura)
         ubigeo: "200104"
-        purpose: validación de gore_piura_hydromet
+        purpose: costa
       - code: "104079"
         name: MALLARES
         district: MARCAVELICA (Sullana, Piura)
         ubigeo: "200605"
-        purpose: validación de gore_piura_hydromet
+        purpose: costa
       - code: "103038"
         name: PUERTO PIZARRO
         district: TUMBES
@@ -247,12 +219,6 @@ relations:
   - datasets: [dengue, renipress_facilities]
     join_key: dengue.ubigeo = renipress.UBIGEO
     purpose: establecimientos de salud por habitante frente a casos graves o sin confirmar
-  - datasets: [dengue, gore_piura_hydromet]
-    join_key: ubigeo o provincia + semana epidemiológica (la lluvia diaria se agrega a semanas)
-    purpose: semanas de retraso entre lluvia y aumento de casos en Piura
   - datasets: [dengue, senamhi_stations]
     join_key: ubigeo o provincia de la estación + semana epidemiológica
     purpose: relación entre lluvia, temperatura y casos en la costa y la selva
-  - datasets: [gore_piura_hydromet, senamhi_stations]
-    join_key: distrito + fecha
-    purpose: validar la lluvia del Gobierno Regional de Piura con estaciones oficiales del SENAMHI
