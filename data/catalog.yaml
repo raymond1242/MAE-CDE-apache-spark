@@ -175,7 +175,7 @@ datasets:
     temporal_coverage: 2022-01 a 2025-12, diario, según los meses que publique cada estación
     spatial_coverage: 9 estaciones cercanas a ciudades con dengue
     join_key: ubigeo de la estación + fecha
-    retrieved_on: null
+    retrieved_on: 2026-10-30
     source: senamhi_api
     api:
       base_url: https://interoperabilidad.senamhi.gob.pe/api
