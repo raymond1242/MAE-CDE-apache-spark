@@ -53,3 +53,11 @@ python scripts/download_data.py --verify-only  # only check
 ```
 
 `CHANGED` means the source published a new version of a file.
+
+## Running the analysis
+
+Run the notebooks in order (`jupyter lab`, or any editor using the `.venv` kernel):
+
+1. `notebooks/01_data_preparation.ipynb`: reads `data/raw/`, cleans each source and writes Parquet
+   tables to `data/processed/` (`dengue_cases`, `population`, `water_emergencies`,
+   `health_facilities`, `weather_daily`).
