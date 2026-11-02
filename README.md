@@ -63,3 +63,6 @@ Run the notebooks in order (`jupyter lab`, or any editor using the `.venv` kerne
    `health_facilities`, `weather_daily`).
 2. `notebooks/02_analysis.ipynb`: answers the six analysis questions with the DataFrame API and
    saves its charts to `docs/figures/`.
+3. `notebooks/03_execution_plans.ipynb`: shows how Spark executes the analysis. It writes Q2 in both the
+   DataFrame API and Spark SQL (same result, same plan), reads two execution plans
+   (`explain("formatted")`), and measures lazy evaluation, stages, tasks and shuffles through the Spark UI.
