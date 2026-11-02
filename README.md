@@ -61,3 +61,5 @@ Run the notebooks in order (`jupyter lab`, or any editor using the `.venv` kerne
 1. `notebooks/01_data_preparation.ipynb`: reads `data/raw/`, cleans each source and writes Parquet
    tables to `data/processed/` (`dengue_cases`, `population`, `water_emergencies`,
    `health_facilities`, `weather_daily`).
+2. `notebooks/02_analysis.ipynb`: answers the six analysis questions with the DataFrame API and
+   saves its charts to `docs/figures/`.
