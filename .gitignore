@@ -19,3 +19,18 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# LaTeX report: only the source is versioned (PDF and build files stay local)
+docs/report/build/
+docs/report/**/*.pdf
+docs/report/**/*.aux
+docs/report/**/*.bbl
+docs/report/**/*.bcf
+docs/report/**/*.blg
+docs/report/**/*.fdb_latexmk
+docs/report/**/*.fls
+docs/report/**/*.log
+docs/report/**/*.out
+docs/report/**/*.run.xml
+docs/report/**/*.synctex.gz
+docs/report/**/*.toc
