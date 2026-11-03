@@ -69,6 +69,10 @@ Run the notebooks in order (`jupyter lab`, or any editor using the `.venv` kerne
    DataFrame API and Spark SQL (same result, same plan), reads two execution plans
    (`explain("formatted")`), and measures lazy evaluation, stages, tasks and shuffles through the Spark UI.
 
+If `data/processed/` is already present (the package submitted for the course includes these curated
+Parquet tables), notebooks 02 and 03 run directly, with no download and no SENAMHI API key. Notebook 01 is
+only needed to rebuild those tables from `data/raw/`.
+
 ## Building the report
 
 The technical report (in Spanish) is written in LaTeX: `docs/report/main.tex` includes one file per section
