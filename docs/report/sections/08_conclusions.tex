@@ -1,0 +1,17 @@
+\section{Conclusiones}
+\label{sec:conclusions}
+
+\begin{itemize}
+  \item El dengue en el Perú crece por brotes cada vez más grandes y se concentra en la costa norte y la selva.
+        Los distritos en emergencia por lluvias y con menos horas de agua al día tuvieron más incidencia, y en la
+        costa los casos aumentan unos dos meses después de la lluvia. No se encontró relación entre la gravedad
+        de los casos y la cobertura de establecimientos de salud.
+  \item Sobre la pregunta central: Spark convierte las operaciones en un logical plan; Catalyst lo optimiza
+        (pruning, pushdown, joins reescritos); el physical plan decide cómo ejecutar cada operador; y una action
+        lo divide en stages en cada shuffle y ejecuta cada stage como tasks en paralelo.
+  \item La API no cambia la ejecución: la misma consulta en DataFrame API y en Spark SQL llega al mismo plan.
+  \item El diseño de los datos se refleja en el plan: el particionado por año y el formato Parquet reducen lo que
+        se lee, y el broadcast de las tablas pequeñas evita shuffles.
+  \item El tipo de join define el resultado, no solo el costo: con filas repetidas, un inner join multiplicó los
+        casos, mientras que un left semi join los contó una sola vez.
+\end{itemize}

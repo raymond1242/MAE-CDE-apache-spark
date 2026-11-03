@@ -1,0 +1,37 @@
+\section{Datasets y fuentes}
+\label{sec:datasets}
+
+Se usan cinco fuentes oficiales y públicas (Tabla~\ref{tab:datasets}): cuatro de la Plataforma Nacional de
+Datos Abiertos \cite{datosabiertos} y una de la API de interoperabilidad del SENAMHI. La llave común es el
+\code{ubigeo}, el código de 6 dígitos de cada distrito (2 del departamento, 2 de la provincia y 2 del distrito).
+
+\begin{table}[htbp]
+\centering
+\caption{Datasets del proyecto. \emph{Filas}: tamaño de cada tabla después de la preparación con Spark.}
+\label{tab:datasets}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.1cm} >{\raggedright\arraybackslash}p{2.2cm} X r@{}}
+\toprule
+Dataset (publicador) & Cobertura & Contenido y uso & Filas \\
+\midrule
+Vigilancia de dengue (CDC Perú – MINSA) \cite{ds-dengue} & 2000–2025 &
+  Un caso notificado por fila: distrito, semana epidemiológica, edad, sexo y diagnóstico (CIE-10).
+  Tabla principal. & 1,065,274 \\
+Población identificada con DNI (RENIEC) \cite{ds-reniec} & dic. 2022–2025 &
+  Población por distrito, sexo y edad. Denominador de las tasas. & 75,636 \\
+Distritos en emergencia hídrica (SUNASS) \cite{ds-sunass} & 2017, 2023, 2024 &
+  Un distrito por decreto: tipo de emergencia (lluvias o déficit hídrico) y horas de agua al día. & 9,538 \\
+Establecimientos de salud, RENIPRESS (SUSALUD) \cite{ds-renipress} & corte al 30-09-2026 &
+  Establecimientos activos por distrito y nivel de atención. & 26,972 \\
+Estaciones meteorológicas (SENAMHI) \cite{senamhi-api} & 2022–2025 &
+  Lluvia, temperatura y humedad diarias de 9 estaciones de la costa norte y la selva. & 12,827 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+La población por distrito solo existe desde 2022, así que todas las tasas usan 2022–2025. Es la población con
+DNI según el domicilio declarado, no la población censal. Los datos del SENAMHI no tienen control de calidad y
+algunas estaciones tienen días sin registro.
+
+Para que el análisis sea reproducible, \code{data/catalog.yaml} registra la URL y el hash SHA-256 de cada
+archivo, y un script los descarga y verifica. Los datos no se versionan: solo el CSV de dengue pesa 118~MB.

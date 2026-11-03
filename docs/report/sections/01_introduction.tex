@@ -1,0 +1,15 @@
+\section{Introducción y descripción del problema}
+\label{sec:introduction}
+
+El dengue es una enfermedad viral transmitida por el mosquito \emph{Aedes aegypti}, que se reproduce en agua
+acumulada. En el Perú es un problema de salud pública creciente: el sistema de vigilancia registra más de un
+millón de casos entre 2000 y 2025, y las epidemias de 2023 y 2024 fueron las más grandes del periodo.
+
+Este proyecto usa datos abiertos oficiales del Estado peruano para responder seis preguntas sobre el dengue:
+cómo evolucionó, dónde y en quiénes tiene mayor incidencia, y cómo se relaciona con la cobertura de
+establecimientos de salud, las emergencias hídricas y la lluvia. Todo el procesamiento se hace con las
+Structured APIs de Apache Spark, la DataFrame API y Spark SQL \cite{zaharia2016,armbrust2015}.
+
+Además de los resultados, el proyecto responde la pregunta central del curso: \emph{¿cómo transforma Spark
+las operaciones de análisis en una ejecución distribuida?} Para ello se siguen consultas reales del análisis
+desde el logical plan hasta los stages y tasks que se ejecutan, y se mide el shuffle que generan.

@@ -1,0 +1,175 @@
+\section{Análisis de los planes de ejecución}
+\label{sec:plans}
+
+Spark no ejecuta las operaciones en el orden en que se escriben. Cada consulta pasa por varias fases
+\cite{armbrust2015}: el analyzed logical plan (qué se pide, con nombres y tipos resueltos), el optimized logical
+plan (las reglas de Catalyst lo reescriben), el physical plan (cómo se ejecuta cada operador) y, cuando llega una
+action, la ejecución en stages y tasks. Esta sección analiza dos planes con \code{explain("formatted")}
+(Figura~\ref{fig:plans}) y luego la ejecución completa de una consulta simple (notebook 03).
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.585\textwidth}
+\begin{lstlisting}[style=plan]
+AdaptiveSparkPlan (25)
++- Sort (24)
+   +- Exchange (23)
+      +- Project (22)
+         +- Filter (21)
+            +- Window (20)
+               +- WindowGroupLimit (19)
+                  +- Sort (18)
+                     +- Exchange (17)
+                        +- WindowGroupLimit (16)
+                           +- Sort (15)
+                              +- Project (14)
+                                 +- BroadcastHashJoin Inner BuildRight (13)
+                                    :- HashAggregate (5)
+                                    :  +- Exchange (4)
+                                    :     +- HashAggregate (3)
+                                    :        +- Filter (2)
+                                    :           +- Scan parquet  (1)
+                                    +- BroadcastExchange (12)
+                                       +- Filter (11)
+                                          +- HashAggregate (10)
+                                             +- Exchange (9)
+                                                +- HashAggregate (8)
+                                                   +- Filter (7)
+                                                      +- Scan parquet  (6)
+\end{lstlisting}
+\subcaption{Plan 1: top de distritos por incidencia (Q2).}
+\label{fig:plan1}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.385\textwidth}
+\begin{lstlisting}[style=plan]
+AdaptiveSparkPlan (9)
++- Project (8)
+   +- BroadcastHashJoin LeftSemi BuildRight (7)
+      :- Filter (2)
+      :  +- Scan parquet  (1)
+      +- BroadcastExchange (6)
+         +- Project (5)
+            +- Filter (4)
+               +- Scan parquet  (3)
+\end{lstlisting}
+\subcaption{Plan 2: casos en distritos con emergencia por lluvias (Q5).}
+\label{fig:plan2}
+\end{minipage}
+\caption{Physical plans de \code{explain("formatted")}. Solo se muestra el árbol; el número identifica a cada
+operador en el detalle que imprime Spark.}
+\label{fig:plans}
+\end{figure}
+
+\subsection{Plan 1: top de distritos por incidencia (Q2)}
+
+\textbf{Logical plan.} Contar casos y sumar población por (año, distrito), unirlos con un left join, quedarse con
+los distritos de 10,000 habitantes o más, calcular el ranking dentro de cada año y quedarse con el top 5.
+
+\textbf{Optimización de Catalyst.}
+\begin{enumerate}
+  \item \textbf{Outer → inner join.} El filtro \code{population >= 10000} elimina las filas con nulos que
+        agregaría el left join, así que Catalyst lo convierte en \code{Join Inner}.
+  \item \textbf{Inferred filters y predicate pushdown.} El rango de años escrito solo para los casos llega
+        también a la población a través del join key, y el filtro de población se aplica antes del join
+        (operador 11).
+  \item \textbf{Partition pruning.} \code{PartitionFilters: [year >= 2022, year <= 2025]}: solo se leen 4 de
+        las 26 carpetas de años. El dynamic partition pruning agrega, en tiempo de ejecución, los años presentes
+        en la población.
+  \item \textbf{Column pruning.} El scan de casos lee \code{struct<ubigeo:string>}, 1 de 14 columnas (el año
+        sale del nombre de la carpeta).
+  \item \textbf{Top-N antes del shuffle.} \code{WindowGroupLimit} conserva los 5 mejores distritos por año antes
+        del shuffle del window (16) y después (19).
+\end{enumerate}
+
+\textbf{Physical plan.} Cada agregación se hace en dos fases: un \code{HashAggregate} parcial en cada task, un
+\code{Exchange} con \code{hashpartitioning} y un \code{HashAggregate} final (operadores 3–5 y 8–10). La población
+agregada ocupa menos que el umbral de 10~MB de \code{autoBroadcastJoinThreshold}, así que se copia a cada task
+(\code{BroadcastHashJoin Inner BuildRight}) y los casos no pasan por un shuffle para el join
+\cite{spark-tuning}. El window necesita otro \code{Exchange} por \code{year} (17) y el \code{orderBy} final, un
+\code{rangepartitioning} (23): en total, cuatro shuffles y un broadcast.
+
+La versión en Spark SQL produce el mismo optimized logical plan y el mismo physical plan. Solo difieren el
+parsed y el analyzed logical plan, porque el texto SQL se convierte en un árbol con CTEs: a Catalyst no le
+importa con qué API se escribió la consulta.
+
+\subsection{Plan 2: casos en distritos con emergencia por lluvias (Q5)}
+
+\textbf{Logical plan.} Casos de 2023–2024 \code{left\_semi} join decretos por lluvias de 2023–2024, por
+(año, distrito).
+
+\textbf{Optimización de Catalyst.} Partition pruning (\code{year IN (2023, 2024)}: 2 de 26 carpetas), filter
+pushdown al Parquet reader (\code{EqualTo(emergency\_type, rain)}, que permite saltar los row groups que no
+pueden coincidir), column pruning (los casos leen solo \code{ubigeo}) y dynamic partition pruning.
+
+\textbf{Physical plan: sin shuffle.} Los decretos filtrados son pocos, así que Spark hace broadcast de ellos como
+una hash table (\code{BroadcastHashJoin LeftSemi BuildRight}). Cada task revisa sus propios casos contra esa
+hash table y emite cada caso como máximo una vez, sin ningún \code{Exchange}. El inner join usa la misma
+estrategia, pero emite una fila por cada decreto que coincide: 1,539,044 filas en lugar de 352,213.
+
+\subsection{Lazy evaluation, DAG, stages y tasks}
+
+Se usa la consulta de Q1: \code{cases.groupBy("year").agg(count).orderBy("year")}. Definirla tomó milisegundos y
+no lanzó ningún job: \code{groupBy}, \code{agg} y \code{orderBy} son transformations que solo amplían el logical
+plan. Recién el \code{collect()}, una action, hizo que Spark planificara y ejecutara la consulta.
+
+La action convierte el physical plan en un DAG de stages, cortado en cada \code{Exchange}, porque un stage solo
+puede empezar cuando sus datos de entrada ya fueron redistribuidos (Figura~\ref{fig:dag}). Cada stage se ejecuta
+como tasks, una por partition: 9 para el scan (los archivos Parquet agrupados en 9 splits para 12 cores) y 1 en
+los siguientes. Con AQE, cada stage con shuffle se lanza como su propio job, así que el \code{collect()} generó 4
+jobs; los stages ya calculados aparecen como \emph{skipped} y reutilizan sus shuffle files. Dentro de un stage,
+los operadores encadenados se compilan en una sola función Java (whole-stage code generation).
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    stage/.style={draw=blue!60, fill=blue!8, rounded corners=2pt, align=center, font=\footnotesize,
+                  text width=30mm, minimum height=13mm},
+    arrow/.style={-{Stealth[length=2mm]}, thick, black!55},
+    lbl/.style={font=\scriptsize, align=center, inner sep=1.5pt}]
+  \node[stage] (s1) at (0, 0)       {\textbf{Stage 1 · 9 tasks}\\Scan parquet\\\code{partial\_count}};
+  \node[stage] (s2) at (6.2, 1.1)   {\textbf{Stage 2 · 1 task}\\\code{count} final\\muestreo de sort keys};
+  \node[stage] (s3) at (6.2, -1.1)  {\textbf{Stage 3 · 1 task}\\\code{count} final};
+  \node[stage] (s4) at (12.4, -1.1) {\textbf{Stage 4 · 1 task}\\\code{Sort}\\26 filas al driver};
+  \draw[arrow] (s1.east) -- (s2.west);
+  \draw[arrow] (s1.east) -- (s3.west);
+  \node[lbl] at (3.15, 0) {shuffle:\\\code{hashpartitioning}\\26 filas};
+  \draw[arrow, dashed] (s2) -- node[lbl, right] {límites de\\los rangos} (s3);
+  \draw[arrow] (s3) -- node[lbl, above] {shuffle:\\\code{rangepartitioning}} (s4);
+\end{tikzpicture}
+\caption{DAG de la consulta de Q1 con AQE: 4 stages, separados por los dos \code{Exchange} (shuffles).}
+\label{fig:dag}
+\end{figure}
+
+\subsection{Shuffle}
+
+Los casos de cada año están repartidos en archivos que leen tasks distintas. Para obtener un total por año, todos
+los conteos parciales del mismo año deben llegar a la misma partition: \code{Exchange hashpartitioning(year)}
+envía cada fila a la partition \code{hash(year) mod N}. Cada task escribe su salida en disco, agrupada por
+partition de destino (\emph{shuffle write}), y las tasks del stage siguiente recogen su parte de cada una
+(\emph{shuffle read}). Es el paso más costoso, porque implica disco, serialización y, en un cluster, red. El
+\code{orderBy} necesita otro shuffle (\code{rangepartitioning}) para que cada partition tenga un rango de años.
+La Tabla~\ref{tab:shuffle} compara la consulta con y sin adaptive query execution (AQE).
+
+\begin{table}[htbp]
+\centering
+\caption{La consulta de Q1 con y sin AQE, según las métricas de la Spark UI.}
+\label{tab:shuffle}
+\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+ & Con AQE & Sin AQE \\
+\midrule
+Tasks del scan & 9 & 9 \\
+Filas leídas & 1,065,274 & 1,065,274 \\
+Filas por shuffle (bytes) & 26 (1,664) & 26 (1,664) \\
+Tasks después del shuffle & 1 + 1 + 1 & 200 + 200 + 26 \\
+Tiempo del \code{collect()} & 0.14 s & 0.24 s \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La agregación parcial reduce el shuffle a 26 filas, una por año, en lugar de 1,065,274. Sin AQE, Spark usa las
+200 partitions por defecto: 200 tasks procesan 26 filas, dos veces, más 26 tasks para el sort, casi todas vacías.
+Con AQE, Spark mide el shuffle y lo reduce con coalesce a 1 partition \cite{spark-tuning}. Evitar shuffles es la
+principal palanca de rendimiento: el plan 1 necesita cuatro, pero ninguno para su join gracias al broadcast, y el
+plan 2 no necesita ninguno.

@@ -1,0 +1,55 @@
+\section{Arquitectura de la solución}
+\label{sec:architecture}
+
+La solución es un pipeline de tres notebooks de PySpark sobre archivos locales (Figura~\ref{fig:architecture}).
+Un script descarga las fuentes y verifica su hash; el notebook 01 las lee con Spark, las limpia y las guarda como
+tablas Parquet; los notebooks 02 y 03 leen esas tablas para responder las preguntas y analizar la ejecución.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    box/.style={draw=black!50, rounded corners=2pt, align=center, font=\footnotesize, text width=33mm,
+                minimum height=13mm, fill=#1},
+    box/.default=white,
+    spark/.style={box=blue!10, draw=blue!60},
+    arrow/.style={-{Stealth[length=2mm]}, thick, black!55}]
+  % Row 1: from the sources to the prepared tables
+  \node[box=black!5] (src)  at (0, 0)     {\textbf{Fuentes}\\datosabiertos.gob.pe (CSV)\\API SENAMHI (JSON)};
+  \node[box=black!5] (dl)   at (4.3, 0)   {\code{download\_data.py}\\\code{catalog.yaml}\\(URL, SHA-256)};
+  \node[box]         (raw)  at (8.6, 0)   {\code{data/raw/}\\datos originales};
+  \node[spark]       (prep) at (12.9, 0)  {\textbf{01 · Preparación}\\esquema explícito,\\limpieza};
+  % Row 2: analysis on the Parquet tables
+  \node[box]         (proc)  at (12.9, -2.7) {\code{data/processed/}\\5 tablas Parquet};
+  \node[spark, minimum height=9mm] (an)    at (8.6, -2.05) {\textbf{02 · Análisis}\\DataFrame API};
+  \node[spark, minimum height=9mm] (plans) at (8.6, -3.35) {\textbf{03 · Ejecución}\\Spark SQL, \code{explain}};
+  \node[box=black!5] (out)   at (4.3, -2.7)  {\textbf{Resultados}\\figuras, planes\\e informe};
+  \draw[arrow] (src) -- (dl);
+  \draw[arrow] (dl) -- (raw);
+  \draw[arrow] (raw) -- (prep);
+  \draw[arrow] (prep) -- (proc);
+  \draw[arrow] (proc) -- (an);
+  \draw[arrow] (proc) -- (plans);
+  \draw[arrow] (an) -- (out);
+  \draw[arrow] (plans) -- (out);
+  \node[font=\footnotesize, anchor=west] at (-1.65, -2.7)
+       {\tikz\filldraw[fill=blue!10, draw=blue!60] (0,0) rectangle (3mm,3mm);~Apache Spark};
+\end{tikzpicture}
+\caption{Arquitectura de la solución. Los pasos en azul se ejecutan con Apache Spark 4.2.1.}
+\label{fig:architecture}
+\end{figure}
+
+Spark corre en local mode: una sola JVM donde el driver planifica el trabajo y 12 executor threads, uno por
+core, ejecutan las tasks. El mismo código correría sin cambios en un cluster. Las principales decisiones de
+diseño son:
+\begin{itemize}
+  \item \textbf{Parquet como formato intermedio.} Es columnar, así que Spark lee solo las columnas que necesita
+        (column pruning). Los casos se guardan particionados por \code{year}, una carpeta por año, y una consulta
+        puede saltar los años que no usa (partition pruning).
+  \item \textbf{Esquemas explícitos.} Las fuentes se leen sin \code{inferSchema}: se evita una pasada extra por
+        los archivos y el \code{ubigeo} se mantiene como texto, sin perder los ceros iniciales.
+  \item \textbf{Spark como herramienta principal.} No se usa Pandas; matplotlib solo dibuja resultados que Spark
+        ya agregó (unas decenas de filas).
+\end{itemize}
+
+El entorno usa Spark 4.2.1 (PySpark), Python 3.11 y Java 25. El código y las instrucciones de ejecución están en
+el repositorio del proyecto \cite{repo}.

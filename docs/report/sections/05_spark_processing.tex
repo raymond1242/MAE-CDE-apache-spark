@@ -1,0 +1,76 @@
+\section{Procesamiento con Apache Spark}
+\label{sec:processing}
+
+\subsection{Lectura y preparación}
+
+Cada fuente necesitó un tratamiento distinto (Tabla~\ref{tab:preparation}). En todas se renombraron las columnas
+al inglés y el resultado se escribió en Parquet.
+
+\begin{table}[htbp]
+\centering
+\caption{Transformaciones principales de la preparación (notebook 01).}
+\label{tab:preparation}
+\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+Fuente & Transformaciones \\
+\midrule
+Dengue & Edad normalizada a años (venía en años, meses o días); gravedad a partir del código CIE-10; semana
+         epidemiológica convertida en la fecha de su domingo (\code{week\_start}) para alinearla con el clima. \\
+RENIEC & Un archivo por año: el año se toma del nombre del archivo con la columna oculta
+         \code{\_metadata.file\_path}. Se excluye a los peruanos en el extranjero y se suma la población por
+         distrito, sexo y etapa de vida. \\
+SUNASS & Archivo en Latin-1; tipo de emergencia (lluvias, déficit hídrico u otra) derivado de la descripción del
+         decreto; marca de prórroga. \\
+RENIPRESS & Separador \code{;} y direcciones con saltos de línea: sin \code{multiLine=True} y
+         \code{escape='"'} se perdían filas. Solo establecimientos activos. \\
+SENAMHI & JSON anidado: dos \code{explode} lo llevan a una fila por estación, día y variable, y un \code{pivot}
+         devuelve una columna por variable. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Análisis}
+
+Las seis preguntas se resuelven con la DataFrame API (notebook 02). Se usan transformaciones (\code{select},
+\code{filter}, \code{withColumn}, \code{when}, \code{fillna}, \code{pivot}, \code{unpivot}), agregaciones
+(\code{groupBy} y \code{agg} con \code{count}, \code{sum}, \code{avg}, \code{min}, \code{max} y \code{corr}, y
+\code{orderBy}) y window functions (\code{lag}, \code{lead}, \code{rowsBetween}, \code{row\_number},
+\code{dense\_rank}, \code{ntile}). Cada join se eligió según lo que la pregunta necesita conservar
+(Tabla~\ref{tab:joins}).
+
+\begin{table}[htbp]
+\centering
+\caption{Tipos de join usados y su justificación.}
+\label{tab:joins}
+\small
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+Join & Dónde & Justificación \\
+\midrule
+\code{left} & Q2, Q4, Q5, Q6 & La tabla que guía la consulta conserva todas sus filas: distritos sin
+  establecimientos (Q4), distritos con 0 casos (Q5), semanas sin casos (Q6). \\
+\code{inner} & Q3 & Casos y población cubren la misma grilla completa (2 sexos × 5 etapas de vida): no se
+  pierde nada. \\
+\code{left\_anti} & Q2 & Verificación: ningún distrito-año con casos queda sin población (resultado: 0). \\
+\code{left\_semi} & Q5 & Filtra los casos de distritos con decreto sin duplicarlos. Un distrito aparece una vez
+  por decreto y por prórroga: un inner join devuelve 1,539,044 filas en lugar de 352,213. \\
+\code{cross} & Q6 & Cada estación con un calendario de 209 semanas, para que \code{lead} avance semanas y no
+  filas cuando faltan datos. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{DataFrame API y Spark SQL}
+
+La consulta de Q2 (los cinco distritos con mayor incidencia por año) se escribió también en Spark SQL, sobre
+temporary views. Las dos versiones devuelven el mismo resultado (\code{exceptAll} en ambas direcciones da 0
+filas) y, desde el optimized logical plan, el mismo plan (Sección~\ref{sec:plans}). Por ejemplo, el ranking:
+
+\begin{lstlisting}
+# DataFrame API
+by_year = Window.partitionBy("year").orderBy(F.desc(F.col("cases") / F.col("population")))
+F.dense_rank().over(by_year).alias("rank")
+-- Spark SQL
+DENSE_RANK() OVER (PARTITION BY year ORDER BY cases / population DESC) AS rank
+\end{lstlisting}
