@@ -18,7 +18,9 @@ All data is public and official, most of it from Peru's
 ├── notebooks/                # PySpark analysis (main deliverable)
 ├── scripts/
 │   └── download_data.py      # downloads and verifies the data in data/catalog.yaml
-├── docs/                     # report, slides, figures and execution plans
+├── docs/
+│   ├── figures/              # charts saved by notebook 02 (also used by the report)
+│   └── report/               # LaTeX source of the technical report (main.tex + sections/)
 ├── .env.example              # template for local secrets
 └── requirements.txt
 ```
@@ -66,3 +68,14 @@ Run the notebooks in order (`jupyter lab`, or any editor using the `.venv` kerne
 3. `notebooks/03_execution_plans.ipynb`: shows how Spark executes the analysis. It writes Q2 in both the
    DataFrame API and Spark SQL (same result, same plan), reads two execution plans
    (`explain("formatted")`), and measures lazy evaluation, stages, tasks and shuffles through the Spark UI.
+
+## Building the report
+
+The technical report (in Spanish) is written in LaTeX: `docs/report/main.tex` includes one file per section
+from `docs/report/sections/` and reads the charts from `docs/figures/`. It needs a TeX distribution with
+`latexmk` and `biber` (e.g. TeX Live or MacTeX):
+
+```bash
+cd docs/report
+latexmk          # writes build/main.pdf; only the LaTeX source is committed
+```
