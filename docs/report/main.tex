@@ -1,0 +1,80 @@
+% Technical report: dengue in Peru, an Apache Spark analysis.
+% Build with `latexmk` from this folder (see .latexmkrc): the PDF and auxiliary files go to build/,
+% which is not versioned. Each section lives in sections/; figures are read from ../figures/.
+\documentclass[11pt,a4paper]{article}
+
+% Language and fonts. es-noshorthands keeps < and > free for TikZ; es-tabla names tables "Tabla".
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noshorthands,es-tabla,es-nodecimaldot]{babel}
+\usepackage{amsmath}
+\usepackage{lmodern}                 % typewriter font for code
+\usepackage{newtxtext,newtxmath}     % Times for text and math
+\usepackage{microtype}
+\usepackage{csquotes}
+
+% Page layout
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage{enumitem}
+\setlist{itemsep=1pt,topsep=3pt}
+
+% Figures, tables and diagrams
+\usepackage{graphicx}
+\graphicspath{{../figures/}}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf,skip=4pt}
+\setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+
+% Code and execution plans
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\footnotesize, columns=fullflexible, keepspaces=true, frame=single,
+        framerule=0.4pt, rulecolor=\color{black!30}, breaklines=true, xleftmargin=3pt, xrightmargin=3pt,
+        aboveskip=6pt, belowskip=6pt}
+\lstdefinestyle{plan}{basicstyle=\ttfamily\fontsize{6.6}{7.6}\selectfont, breaklines=false}
+
+% References in IEEE style
+\usepackage[style=ieee,backend=biber]{biblatex}
+\addbibresource{references.bib}
+\renewcommand*{\bibfont}{\small}
+
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{Dengue en el Perú: análisis de datos con Apache Spark\\[4pt]\large Informe técnico}
+\author{Raymond Negron\\[2pt]\small Ciencia de Datos Escalable · Maestría en Ciencia de Datos}
+\date{Noviembre de 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Este informe analiza el dengue en el Perú entre 2000 y 2025 con Apache Spark, integrando cinco fuentes de datos
+abiertos oficiales: casos notificados, población, emergencias hídricas, establecimientos de salud y estaciones
+meteorológicas. Con la DataFrame API y Spark SQL se responden seis preguntas: los brotes son cada vez más grandes,
+la mayor incidencia está en la costa norte, y los distritos en emergencia por lluvias o con menos horas de agua
+tuvieron más casos. Además, se siguen consultas reales desde el logical plan hasta los stages, tasks y shuffles,
+para explicar cómo Spark convierte las operaciones en una ejecución distribuida.
+\end{abstract}
+
+\input{sections/01_introduction}
+\input{sections/02_datasets}
+\input{sections/03_questions}
+\input{sections/04_architecture}
+\input{sections/05_spark_processing}
+\input{sections/06_results}
+\input{sections/07_execution_plans}
+\input{sections/08_conclusions}
+
+\printbibliography[heading=bibnumbered,title={Referencias}]
+
+\end{document}
